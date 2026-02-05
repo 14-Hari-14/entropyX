@@ -1,0 +1,11 @@
+# datasets
+data/
+
+# binaries / generated artifacts
+*.dll
+*.exe
+*.bin
+*.so
+
+# logs
+*.log

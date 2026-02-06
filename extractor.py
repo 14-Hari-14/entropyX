@@ -2,6 +2,7 @@ from collections import Counter
 import math
 import pefile
 import numpy as np 
+import os
 
 def shanon_helper(binary_data) -> float:
     counter = Counter()
@@ -35,7 +36,7 @@ def get_entropy_features(pe) -> dict:
                        'min_entropy': min(pe_entropy_list),
                        'std_entropy': np.std(pe_entropy_list)}
     
-    print(entropy_summary)
+    # print(entropy_summary)
     return entropy_summary
 
 # Structural features are used to capture more information about file which will help the model find underlying patterns in the data
@@ -62,17 +63,39 @@ def get_structural_features(filepath, pe)-> dict:
     return structural_features    
 
 # The main function that will call other functions to generate 1 row per file for the dataset
-def orchestrator(filepath) -> dict:
-    pe = pefile.PE(filepath)
+def extract_all_features(filepath) -> dict:
+    pe = None
+    try: 
+        pe = pefile.PE(filepath)
+
+        features = {
+            'filename': os.path.basename(filepath),
+            'total_file_size': os.path.getsize(filepath)
+        }
+        
+        features.update(get_entropy_features(pe))
+        features.update(get_structural_features(filepath, pe))
     
-    final_csv_row = {}
-    final_csv_row.update(get_entropy_features(pe))
-    final_csv_row.update(get_structural_features(filepath, pe))
+    except pefile.PEFormatError as e:
+        print(f"Error processing {filepath}: {e}")
+        features = None
+        
+    finally:
+        if pe is not None:
+            pe.close()
     
-    pe.close()
-    
-    return final_csv_row
-    
+    return features
+
+
+sample_malware = 'data/malicious/sgn/shikata_1.exe'
+sample_malware_1 = 'data/malicious/custom_malware_bash/custom_loader_1.exe'
+
+result = extract_all_features(sample_malware)
+result_1 = extract_all_features(sample_malware_1)
+
+print(result)
+print(result_1)
+
 # # example usage for testing normal bash files
 # shanon_helper('generate_benign.sh')
 # shanon_helper('generate_custom_malware.sh')

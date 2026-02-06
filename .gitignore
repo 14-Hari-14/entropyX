@@ -1,5 +1,16 @@
 # datasets
 data/
+*.zip
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# virtual environments
+venv/
+.venv/
 
 # binaries / generated artifacts
 *.dll

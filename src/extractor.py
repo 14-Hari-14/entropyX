@@ -1,3 +1,4 @@
+# File to extract relevant features from the PE files
 from collections import Counter
 import math
 import pefile
@@ -87,14 +88,12 @@ def extract_all_features(filepath) -> dict:
     return features
 
 
-sample_malware = '../data/malicious/sgn/shikata_1.exe'
-sample_malware_1 = '../data/malicious/custom_malware_bash/custom_loader_1.exe'
-
-result = extract_all_features(sample_malware)
-result_1 = extract_all_features(sample_malware_1)
-
-print(result)
-print(result_1)
+# sample_malware = '../data/malicious/sgn/shikata_1.exe'
+# sample_malware_1 = '../data/malicious/custom_malware_bash/custom_loader_1.exe'
+# result = extract_all_features(sample_malware)
+# result_1 = extract_all_features(sample_malware_1)
+# print(result)
+# print(result_1)
 
 # # example usage for testing normal bash files
 # shanon_helper('generate_benign.sh')

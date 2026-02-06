@@ -87,8 +87,8 @@ def extract_all_features(filepath) -> dict:
     return features
 
 
-sample_malware = 'data/malicious/sgn/shikata_1.exe'
-sample_malware_1 = 'data/malicious/custom_malware_bash/custom_loader_1.exe'
+sample_malware = '../data/malicious/sgn/shikata_1.exe'
+sample_malware_1 = '../data/malicious/custom_malware_bash/custom_loader_1.exe'
 
 result = extract_all_features(sample_malware)
 result_1 = extract_all_features(sample_malware_1)

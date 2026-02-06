@@ -1,8 +1,9 @@
 from collections import Counter
 import math
-import pefile 
+import pefile
+import numpy as np 
 
-def shanon_helper(binary_data):
+def shanon_helper(binary_data) -> float:
     counter = Counter()
     entropy = 0.0
     
@@ -22,18 +23,56 @@ def shanon_helper(binary_data):
     return entropy
 
 # Avg entropy for malicious files is 1.41 because the file is padded with null data which reduces avg, therefore its necessary to look at it section wise
-def extract_pe_entropy(filepath):
-    pe = pefile.PE(filepath)
+def get_entropy_features(pe) -> dict:
     pe_entropy_list  = []
     for section in pe.sections:
         section_data_trimmed = section.get_data()[:section.Misc_VirtualSize]
         section_entropy = shanon_helper(section_data_trimmed)
         pe_entropy_list.append(section_entropy)
-        
-    print(pe_entropy_list)
-    return pe_entropy_list
+    
+    entropy_summary = {'avg_entropy': sum(pe_entropy_list)/len(pe_entropy_list),
+                       'max_entropy': max(pe_entropy_list), 
+                       'min_entropy': min(pe_entropy_list),
+                       'std_entropy': np.std(pe_entropy_list)}
+    
+    print(entropy_summary)
+    return entropy_summary
 
+# Structural features are used to capture more information about file which will help the model find underlying patterns in the data
+def get_structural_features(filepath, pe)-> dict:
+    num_sections = len(pe.sections)
+    size_of_headers = pe.OPTIONAL_HEADER.SizeOfHeaders
+    raw_size = size_of_headers
+    virtual_size = size_of_headers
+    
+    for section in pe.sections:
+        raw_size += section.SizeOfRawData
+        virtual_size += section.Misc_VirtualSize
+    
+    virtual_size_ratio = virtual_size/raw_size if raw_size > 0 else 0
+    
+    structural_features = {
+        'num_sections': num_sections,
+        'size_of_headers': size_of_headers,
+        'raw_size': raw_size,
+        'virtual_size': virtual_size,
+        'virtual_size_ratio': virtual_size_ratio
+    }
+    
+    return structural_features    
 
+# The main function that will call other functions to generate 1 row per file for the dataset
+def orchestrator(filepath) -> dict:
+    pe = pefile.PE(filepath)
+    
+    final_csv_row = {}
+    final_csv_row.update(get_entropy_features(pe))
+    final_csv_row.update(get_structural_features(filepath, pe))
+    
+    pe.close()
+    
+    return final_csv_row
+    
 # # example usage for testing normal bash files
 # shanon_helper('generate_benign.sh')
 # shanon_helper('generate_custom_malware.sh')
@@ -43,6 +82,5 @@ def extract_pe_entropy(filepath):
 # shanon_helper('data/malicious/sgn/shikata_1.exe')
 # # example usage for testing benign pe files
 # shanon_helper('data/benign/AccountsRt.dll')
-
-extract_pe_entropy('data/malicious/sgn/shikata_1.exe')
-extract_pe_entropy('data/malicious/custom_malware_bash/custom_loader_1.exe')
+# get_entropy_features('data/malicious/sgn/shikata_1.exe')
+# get_entropy_features('data/malicious/custom_malware_bash/custom_loader_1.exe')

@@ -13,7 +13,8 @@
 4. [Key Technical Decisions](#4-key-technical-decisions)
 5. [Pythonic Implementation Details](#5-pythonic-implementation-details)
 6. [Architecture & Code Organization](#6-architecture--code-organization)
-7. [Future Improvements](#7-future-improvements)
+7. [Model Training & Results](#7-model-training--results)
+8. [Future Improvements](#8-future-improvements)
 
 ---
 
@@ -23,13 +24,15 @@ This project extracts features from Portable Executable (PE) files to train a ma
 
 ### Key Files
 
-| File                         | Purpose                                         |
-| ---------------------------- | ----------------------------------------------- |
-| `extractor.py`               | Main feature extraction logic                   |
-| `generate_custom_malware.sh` | Creates synthetic high-entropy malware samples  |
-| `generate_benign.sh`         | Retrieves legitimate Windows system files       |
-| `data/malicious/`            | Training samples (custom loaders + SGN encoded) |
-| `data/benign/`               | Legitimate Windows executables                  |
+| File                         | Purpose                                          |
+| ---------------------------- | ------------------------------------------------ |
+| `extractor.py`               | Main feature extraction logic                    |
+| `builder.py`                 | Batch processes PE files → generates dataset.csv |
+| `trainer.py`                 | Trains Random Forest model & evaluates results   |
+| `generate_custom_malware.sh` | Creates synthetic high-entropy malware samples   |
+| `generate_benign.sh`         | Retrieves legitimate Windows system files        |
+| `data/malicious/`            | Training samples (custom loaders + SGN encoded)  |
+| `data/benign/`               | Legitimate Windows executables                   |
 
 ---
 
@@ -175,6 +178,113 @@ def extract_all_features(filepath) -> dict:  # Orchestrator
 | **Extensibility**         | Add `get_import_features()` without touching entropy logic |
 | **Single Responsibility** | Each worker does one thing well                            |
 | **Resource Safety**       | `pe.close()` in one place (now in `finally` block)         |
+
+---
+
+### Commit 6: `builder.py` — Dataset CSV Generator (Bug Fixes)
+
+**What:** Created `builder.py` to batch-process all PE files and generate a training CSV.
+
+#### ⚠️ Bug A: `os.walk` Yields a Tuple, Not a File Path
+
+**The Mistake:**
+
+```python
+for file in os.walk('../data/benign', topdown=True):
+    row = extract_all_features(file)  # ❌ CRASH: passing a tuple!
+```
+
+**What Happened:**  
+`os.walk()` doesn't yield file paths—it yields a **3-tuple**: `(current_folder, list_of_subfolders, list_of_files)`. The code passed the entire tuple to `pefile.PE()`, which expects a string path.
+
+**The Fix:**
+
+```python
+for root, dirs, files in os.walk('../data/benign'):  # ✅ Unpack the tuple
+    for filename in files:
+        full_path = os.path.join(root, filename)     # ✅ Reconstruct full path
+        row = extract_all_features(full_path)
+```
+
+| Component | What It Contains              | Example                      |
+| --------- | ----------------------------- | ---------------------------- |
+| `root`    | Current directory path        | `../data/benign/subdir`      |
+| `dirs`    | List of subdirectory names    | `['folder1', 'folder2']`     |
+| `files`   | List of file names (no path!) | `['file1.exe', 'file2.dll']` |
+
+---
+
+#### ⚠️ Bug B: Memory Trap — Accumulating All Rows Before Writing
+
+**The Mistake:**
+
+```python
+rows = []
+for root, dirs, files in os.walk('../data'):
+    for filename in files:
+        row = extract_all_features(...)
+        rows.append(row)  # ❌ Stores everything in RAM
+
+# Write all at once at the end
+writer.writerows(rows)
+```
+
+**The Problem:**  
+At small scale (600 files), this works. At production scale (1 million files), storing 1 million dictionaries in RAM before writing a single line causes **memory exhaustion**.
+
+**The Fix — Streaming Pattern:**
+
+```python
+with open('dataset.csv', 'w') as csvfile:
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    writer.writeheader()
+
+    for root, dirs, files in os.walk('../data'):
+        for filename in files:
+            row = extract_all_features(...)
+            if row:
+                writer.writerow(row)  # ✅ Write immediately, then discard
+```
+
+| Approach                   | Memory Usage (1M files) | Disk I/O              |
+| -------------------------- | ----------------------- | --------------------- |
+| Accumulate then write      | ~8GB+ (crash likely)    | One burst at end      |
+| Stream (write immediately) | ~constant (~1KB)        | Continuous, efficient |
+
+**Lesson Learned:**  
+Never accumulate unbounded data in memory. Write/process incrementally ("streaming") to keep RAM usage constant regardless of input size.
+
+---
+
+#### ⚠️ Bug C: Missing File Extension Filter
+
+**The Mistake:**
+
+```python
+for filename in files:
+    row = extract_all_features(os.path.join(root, filename))
+    # ❌ Will try to parse .sh, .DS_Store, .txt, etc.
+```
+
+**The Problem:**  
+The data directory might contain non-PE files (shell scripts, macOS metadata, logs). Attempting to parse them with `pefile` causes unnecessary errors and clutters logs.
+
+**The Fix:**
+
+```python
+for filename in files:
+    if filename.endswith(('.exe', '.dll')):  # ✅ Filter before processing
+        row = extract_all_features(os.path.join(root, filename))
+```
+
+| File Type     | Before (No Filter) | After (With Filter) |
+| ------------- | ------------------ | ------------------- |
+| `malware.exe` | ✅ Processed       | ✅ Processed        |
+| `generate.sh` | ❌ Error logged    | ⏭️ Skipped silently |
+| `.DS_Store`   | ❌ Error logged    | ⏭️ Skipped silently |
+
+**Best Practice:**  
+Always validate input before processing. Filtering early ("fail fast") prevents wasted computation and keeps logs clean.
 
 ---
 
@@ -333,13 +443,159 @@ extractor.py
 
 ---
 
-## 7. Future Improvements
+## 7. Model Training & Results
+
+### 7.1 Training Pipeline (`trainer.py` v1)
+
+```python
+# Load and prepare data
+df = pd.read_csv('../data/dataset.csv')
+
+# Drop multicollinear and non-predictive features
+X = df.drop(columns=['is_malicious', 'raw_size', 'virtual_size', 'filename'])
+y = df['is_malicious']
+
+# Stratified split (maintains class balance in train/test)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# Train Random Forest
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+```
+
+#### Why These Features Were Dropped
+
+| Dropped Feature | Reason                                                          |
+| --------------- | --------------------------------------------------------------- |
+| `filename`      | Non-predictive (string identifier, not a signal)                |
+| `raw_size`      | Multicollinear with `total_file_size`                           |
+| `virtual_size`  | Multicollinear with `raw_size`; ratio captures the relationship |
+
+---
+
+### 7.2 Exploratory Data Analysis (EDA)
+
+Before training, we visualized the dataset to understand feature relationships and validate our assumptions.
+
+#### Feature Correlation with Target (`is_malicious`)
+
+<img src="feature_correlation_heatmap.png" alt="Feature Correlation Heatmap" width="500">
+
+**Insight:** Shows which features have the strongest correlation with malware classification. Entropy features (`max_entropy`, `std_entropy`) show the highest positive correlation with `is_malicious`.
+
+---
+
+#### Max Entropy Distribution by Class
+
+<img src="max_entropy_boxplot.png" alt="Max Entropy Box Plot" width="450">
+
+**Insight:** Clear separation between benign (class 0) and malicious (class 1) samples. Malware consistently shows higher `max_entropy` values (~7.5-8.0), while benign files cluster around 5.0-6.5. This visual confirms `max_entropy` is the strongest discriminator.
+
+---
+
+#### Multicollinearity Between Features
+
+<img src="multicollinearity_heatmap.png" alt="Multicollinearity Heatmap" width="500">
+
+**Insight:** Reveals which features are redundant:
+
+- `raw_size` and `virtual_size` are highly correlated (~0.95+) → dropped `raw_size`
+- `virtual_size` and `total_file_size` overlap → kept `total_file_size`, dropped `virtual_size`
+- `virtual_size_ratio` captures the relationship without redundancy
+
+**Why this matters:** Multicollinear features don't add new information but can destabilize model coefficients and inflate feature importance scores.
+
+---
+
+### 7.3 Results: Perfect Classification 🎯
+
+#### Confusion Matrix
+
+```
+              Predicted
+              0      1
+Actual  0  [ 99     0 ]
+        1  [  0   100 ]
+```
+
+| Metric                               | Value |
+| ------------------------------------ | ----- |
+| **True Negatives (Benign correct)**  | 99    |
+| **False Positives**                  | 0     |
+| **False Negatives**                  | 0     |
+| **True Positives (Malware correct)** | 100   |
+
+#### Classification Report
+
+| Class        | Precision | Recall | F1-Score | Support |
+| ------------ | --------- | ------ | -------- | ------- |
+| 0 (Benign)   | 1.00      | 1.00   | 1.00     | 99      |
+| 1 (Malware)  | 1.00      | 1.00   | 1.00     | 100     |
+| **Accuracy** |           |        | **1.00** | **199** |
+
+---
+
+### 7.4 Feature Importance Analysis (The "Why")
+
+```
+max_entropy           0.3275   ████████████████████
+std_entropy           0.2516   ███████████████
+avg_entropy           0.1943   ████████████
+min_entropy           0.1149   ███████
+size_of_headers       0.0612   ████
+total_file_size       0.0279   ██
+num_sections          0.0139   █
+virtual_size_ratio    0.0086   █
+```
+
+#### Interpretation
+
+| Rank | Feature           | Importance | What It Tells Us                                            |
+| ---- | ----------------- | ---------- | ----------------------------------------------------------- |
+| 1    | `max_entropy`     | 32.75%     | **The smoking gun** — encrypted payloads hit ~7.99 entropy  |
+| 2    | `std_entropy`     | 25.16%     | Malware has _variance_ (encrypted section vs. null padding) |
+| 3    | `avg_entropy`     | 19.43%     | Overall file complexity                                     |
+| 4    | `min_entropy`     | 11.49%     | Benign files rarely have near-zero sections                 |
+| 5    | `size_of_headers` | 6.12%      | Anomalous headers can indicate tampering                    |
+| 6-8  | Others            | < 3% each  | Minor contributors                                          |
+
+#### Key Insight: Entropy Features Dominate
+
+The top 4 features are **all entropy-based**, accounting for **88.83%** of the model's decision-making power. This validates the project's core hypothesis:
+
+> **Section-aware entropy analysis is the strongest signal for detecting packed/encrypted malware.**
+
+---
+
+### 7.5 Caveats & Next Steps
+
+⚠️ **Why 100% accuracy might be misleading:**
+
+| Concern                    | Explanation                                                                              |
+| -------------------------- | ---------------------------------------------------------------------------------------- |
+| **Synthetic data**         | Custom malware was generated with intentionally high entropy—real malware is more varied |
+| **Small dataset**          | 199 test samples; production needs 10,000+                                               |
+| **No adversarial samples** | Sophisticated malware uses entropy masking techniques                                    |
+
+**Recommended next steps:**
+
+1. Test on real-world malware samples (VirusTotal, MalwareBazaar)
+2. Add adversarial samples (entropy-normalized malware)
+3. Cross-validate with k-fold to ensure robustness
+
+---
+
+## 8. Future Improvements
 
 - [ ] **Import Address Table (IAT) Analysis** — Detect suspicious API calls (`VirtualAlloc`, `WriteProcessMemory`)
 - [ ] **Section Name Analysis** — Flag unusual names like `UPX0`, `.enigma`
 - [ ] **String Extraction** — Find hardcoded C2 URLs or registry keys
 - [ ] **YARA Rule Integration** — Cross-reference with known malware signatures
 - [ ] **Batch Processing Pipeline** — Parallel extraction with `multiprocessing`
+- [x] ~~**Train baseline model**~~ — Random Forest achieving 100% on synthetic dataset
+- [ ] **Real-world validation** — Test on MalwareBazaar/VirusTotal samples
 
 ---
 

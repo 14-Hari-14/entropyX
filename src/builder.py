@@ -5,12 +5,13 @@ from extractor import extract_all_features
 
 # Configuration
 BENIGN_PATH = '../data/benign/'
-MALICIOUS_PATH = '../data/malicious/'
-OUTPUT_CSV = '../data/dataset.csv'
+MALICIOUS_PATH_SGN = '../data/malicious/sgn/'
+MALICIOUS_PATH_CUSTOM = '../data/malicious/custom_malware_bash/'
+OUTPUT_CSV = '../data/dataset_v1.csv'
 
 def build_dataset():
     # We grab a known good file to detect the feature names
-    header_file = os.path.join(MALICIOUS_PATH, "sgn/shikata_1.exe")
+    header_file = os.path.join(MALICIOUS_PATH_SGN, "shikata_1.exe")
     
     if not os.path.exists(header_file):
         print(f"Error: Sample file not found at {header_file}")
@@ -24,6 +25,7 @@ def build_dataset():
 
     # Prepare CSV Headers
     column_headers = list(sample_data.keys())
+    column_headers.append("family")
     column_headers.append('is_malicious')
     print(f"Features detected: {column_headers}")
 
@@ -36,12 +38,13 @@ def build_dataset():
         
         # Helper to process a folder
         # We pass the 'writer' object to it so it can write directly to the open file
-        process_folder(BENIGN_PATH, 0, writer)
-        process_folder(MALICIOUS_PATH, 1, writer)
+        process_folder(BENIGN_PATH, "benign", 0, writer)
+        process_folder(MALICIOUS_PATH_CUSTOM, "custom",1, writer)
+        process_folder(MALICIOUS_PATH_SGN, "sgn",1, writer)
         
     print(f"\nSuccess! Dataset saved to {OUTPUT_CSV}")
 
-def process_folder(folder_path, label, writer):
+def process_folder(folder_path, family, label, writer):
     count = 0
     # os.walk yields (root, dirs, files) - we only need root and files
     for root, _, files in os.walk(folder_path):
@@ -57,6 +60,7 @@ def process_folder(folder_path, label, writer):
             
             # Write immediately (Streaming)
             if features:
+                features['family'] = family
                 features['is_malicious'] = label
                 writer.writerow(features)
                 count += 1

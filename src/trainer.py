@@ -2,6 +2,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.preprocessing import StandardScaler
 
 import joblib
 from datetime import datetime
@@ -18,12 +19,18 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+X_train_scaled_df = pd.DataFrame(X_train_scaled, columns=X.columns)
+
 # Train
 model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
+model.fit(X_train_scaled, y_train)
 
 # Evaluate
-y_pred = model.predict(X_test)
+y_pred = model.predict(X_test_scaled)
 
 print("--- Confusion Matrix ---")
 print(confusion_matrix(y_test, y_pred))
@@ -31,22 +38,24 @@ print(confusion_matrix(y_test, y_pred))
 print("\n--- Classification Report ---")
 print(classification_report(y_test, y_pred))
 
-# 5. The Insight: Feature Importance
+#  Feature Importance
 importances = pd.Series(model.feature_importances_, index=X.columns).sort_values(ascending=False)
 print("\n--- Feature Importance (The 'Why') ---")
 print(importances)
 
-# 1. Create a versioned name
+# Create a versioned name
 version = "v1"
 timestamp = datetime.now().strftime("%Y%m%d")
 model_filename = f"malware_rf_{version}_{timestamp}.joblib"
+scaler_filename = f"scaler_{version}_{timestamp}.joblib"
 metadata_filename = f"metadata_{version}_{timestamp}.txt"
 
-# 2. Save the model
+# Save the model and scaler
 joblib.dump(model, model_filename)
+joblib.dump(scaler, scaler_filename)
 
-# 3. Save the Data Trail (Metadata)
-# This is crucial for benchmarking later so you know what was in the training set
+# Save metadata
+# This is crucial for benchmarking later so we know what was in the training set
 with open(metadata_filename, "w") as f:
     f.write(f"Model Version: {version}\n")
     f.write(f"Training Date: {datetime.now()}\n")
@@ -55,4 +64,5 @@ with open(metadata_filename, "w") as f:
     f.write(f"Top Feature: {importances.index[0]} ({importances.iloc[0]:.4f})\n")
 
 print(f"[SUCCESS] Model saved as {model_filename}")
+print(f"[SUCCESS] Scaler saved as {scaler_filename}")
 print(f"[SUCCESS] Metadata saved as {metadata_filename}")

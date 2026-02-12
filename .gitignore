@@ -1,5 +1,7 @@
 # datasets
 data/
+src/bb1.py
+
 *.zip
 
 # Python cache
@@ -20,3 +22,6 @@ venv/
 
 # logs
 *.log
+
+# env file
+.env

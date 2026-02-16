@@ -1,0 +1,19 @@
+services:
+  suricata:
+    image: jasonish/suricata:7.0.2
+    container_name: suricata_nids
+    user: root
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    entrypoint: /usr/bin/suricata
+    # -k none = Disable checksum checks (Critical for Loopback)
+    # -v      = Verbose logging (So we see errors)
+    command: "-c /etc/suricata/suricata.yaml --pcap=lo -k none -v"
+    volumes:
+      - /dev/shm/suricata_data:/var/log/suricata
+      - ./suricata.yaml:/etc/suricata/suricata.yaml
+      - ./local.rules:/etc/suricata/rules/local.rules
+    restart: always

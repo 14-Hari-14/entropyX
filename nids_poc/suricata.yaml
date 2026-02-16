@@ -1,0 +1,53 @@
+%YAML 1.1
+---
+# 1. Capture Block: Force PCAP on Loopback with NO checksums
+pcap:
+  - interface: lo
+    checksum-checks: no
+    promisc: no
+    snaplen: 0 # Unlimited
+
+# 2. App Layer: Force HTTP detection
+app-layer:
+  protocols:
+    http:
+      enabled: yes
+      detection-enabled: yes
+
+# 3. Stream Engine: Permissive Mode
+stream:
+  memcap: 64mb
+  checksum-validation: no # CRITICAL: Loopback packets have 0 checksums
+  inline: no
+  reassembly:
+    memcap: 128mb
+    depth: 1mb
+    toserver-chunk-size: 2560
+    toclient-chunk-size: 2560
+
+# 4. Outputs: Log EVERYTHING (Flows + Files)
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        - alert
+        - http # Log HTTP meta-data
+        - files: # Log File meta-data
+            force-magic: yes
+            force-hash: [sha256]
+        - flow # Log connection stats (to see if it saw anything)
+
+  - file-store:
+      version: 2
+      enabled: yes
+      dir: filestore
+      write-fileinfo: yes
+      stream-depth: 1mb
+      force-magic: yes
+
+# 5. Rules
+default-rule-path: /etc/suricata/rules
+rule-files:
+  - local.rules

@@ -4,10 +4,10 @@ import csv
 from extractor import extract_all_features
 
 # Configuration
-BENIGN_PATH = '../data/benign/'
+#BENIGN_PATH = '../data/benign/'
 MALICIOUS_PATH_SGN = '../data/malicious/sgn/'
 MALICIOUS_PATH_CUSTOM = '../data/malicious/custom_malware_bash/'
-OUTPUT_CSV = '../data/dataset_v1.csv'
+OUTPUT_CSV = '../data/dataset_ransomware_custom.csv'
 
 def build_dataset():
     # We grab a known good file to detect the feature names
@@ -38,7 +38,7 @@ def build_dataset():
         
         # Helper to process a folder
         # We pass the 'writer' object to it so it can write directly to the open file
-        process_folder(BENIGN_PATH, "benign", 0, writer)
+        #process_folder(BENIGN_PATH, "benign", 0, writer)
         process_folder(MALICIOUS_PATH_CUSTOM, "custom",1, writer)
         process_folder(MALICIOUS_PATH_SGN, "sgn",1, writer)
         

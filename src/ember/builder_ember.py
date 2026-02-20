@@ -2,7 +2,7 @@ import os
 import csv
 import time
 import concurrent.futures
-from ember_extractor import PEFeatureExtractor
+from ember.ember_extractor import PEFeatureExtractor
 
 # --- CONFIGURATION ---
 FOLDERS = {
@@ -132,7 +132,7 @@ def build_dataset_parallel():
         
         print(f"[*] Starting parallel extraction with {MAX_WORKERS} workers...")
         
-        # We use ProcessPoolExecutor for true parallelism
+        # We use ProcessPoolExecutor for parallelism
         with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
             # Map returns results in the order they were submitted
             results = executor.map(process_file_wrapper, tasks)

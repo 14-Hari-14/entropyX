@@ -25,3 +25,7 @@ venv/
 
 # env file
 .env
+
+redundant_scripts/
+
+Model/

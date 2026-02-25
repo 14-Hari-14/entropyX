@@ -4,8 +4,8 @@ import numpy as np
 import lightgbm as lgb
 from ember_extractor import PEFeatureExtractor
 
-#  CONFIGURATION 
-MODEL_PATH = "sorel_model_v1.txt" 
+# --- CONFIGURATION ---
+MODEL_PATH = "sorel_model_v1.txt" # The .txt file you exfiltrated
 # TARGET_FILE = "/home/hari/Downloads/xdr-hids-client-1.9.4(2).exe"
 # TARGET_FILE = "../../data/malicious/sgn/shikata_1.exe"
 TARGET_FILE = "../../data/malicious/custom_malware_bash/custom_loader_1.exe"
@@ -57,7 +57,6 @@ def predict_sorel(file_path, model_path):
         with open(file_path, 'rb') as f:
             bytez = f.read()
         vector = extractor.feature_vector(bytez)
-        #print(vector)
         
         # 2. Load LightGBM Model from Text
         model = lgb.Booster(model_file=model_path)

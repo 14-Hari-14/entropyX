@@ -25,12 +25,12 @@ print(f"[*] Training on {len(idx)} samples...")
 train_set = lgb.Dataset(X_train, label=y_train)
 
 params = {
-    'objective': 'binary', # binary classification
-    'metric': 'auc', # lightgbm will optimize for AUC
-    'boosting_type': 'gbdt', # traditional gradient boosting decision tree
-    'num_leaves': 31, # default is 31, can be tuned for better performance
-    'learning_rate': 0.1, # default is 0.1, can be reduced for better performance at the cost of longer training
-    'verbose': -1, # suppress lightgbm output
+    'objective': 'binary',
+    'metric': 'auc',
+    'boosting_type': 'gbdt',
+    'num_leaves': 31,
+    'learning_rate': 0.1,
+    'verbose': -1,
     'n_jobs': -1 # Use all CPU cores
 }
 

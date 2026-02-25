@@ -4,8 +4,8 @@ import numpy as np
 import lightgbm as lgb
 from ember_extractor import PEFeatureExtractor
 
-# --- CONFIGURATION ---
-MODEL_PATH = "sorel_lite_model_v1.txt" # Updated to your new Lite model
+#  CONFIGURATION 
+MODEL_PATH = "sorel_lite_model_v1.txt" 
 # TARGET_FILE = "/home/hari/Downloads/xdr-hids-client-1.9.4(2).exe"
 # TARGET_FILE = "../../data/malicious/sgn/shikata_1.exe"
 TARGET_FILE = "../../data/malicious/custom_malware_bash/custom_loader_1.exe"
@@ -56,27 +56,26 @@ def predict_sorel_lite(file_path, model_path):
         return f"ERROR: Model not found at {model_path}", None, None
 
     try:
-        # 1. Feature Extraction (Extracts all 2381 initially)
+        # Feature Extraction (Extracts all 2381 initially)
         extractor = PEFeatureExtractor(feature_version=2)
         with open(file_path, 'rb') as f:
             bytez = f.read()
         raw_vector = extractor.feature_vector(bytez)
         
-        # --- THE LITE MASKING LOGIC ---
-        # We slice the raw vector and the names list so they match our Lite model
+        # Slice the raw vector and the names list so they match our Lite model, need to optimize this by extracting only required features
         lite_indices = get_lite_indices()
         vector = np.array(raw_vector)[lite_indices]
         feature_names = np.array(generate_ember_columns())[lite_indices]
         
-        # 2. Load LightGBM Model from Text
+        # Load LightGBM Model from Text
         model = lgb.Booster(model_file=model_path)
         
-        # 3. Inference
+        # Inference
         prob = model.predict([vector])[0]
         # Lite model might need a lower threshold later, but we keep 0.5 for testing
         verdict = 1 if prob > 0.5 else 0 
         
-        # 4. Feature Impact (Feature Gain)
+        # Feature Impact 
         importances = model.feature_importance(importance_type='gain')
         
         impact_scores = {}

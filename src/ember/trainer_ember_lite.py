@@ -1,116 +1,145 @@
 import numpy as np
 import lightgbm as lgb
-from sklearn.model_selection import RandomizedSearchCV
-from sklearn.metrics import roc_auc_score, make_scorer
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score
 import gc
+import sys
+import random
 
-# Load data
-print("Mapping features...")
+print("Loading data with memory mapping...")
 data = np.load('validation-features.npz', mmap_mode='r')
+
 X_raw = data['arr_0']
 y_raw = data['arr_1']
 
-# Define Lite Features (Header/Sections/Imports)
 lite_indices = np.arange(616, 2381)
-lite_indices = np.delete(lite_indices, np.where(lite_indices == 626)[0]) # Drop Timestamp
+lite_indices = np.delete(lite_indices, np.where(lite_indices == 626)[0])
 
-search_limit = 50000
+print("Train/Test split (index-based, no copy)...")
 
-# Create ONE index array and apply it to both X and y
-print("Shuffling data")
-idx = np.random.permutation(len(y_raw))[:search_limit]
+indices = np.arange(len(y_raw))
+train_idx, test_idx = train_test_split(
+    indices,
+    test_size=0.2,
+    random_state=42
+)
 
-# Using 50k samples to tune hyperparameters will be replaced by full dataset in later iterations
-search_limit = 50000 
-search_idx = idx[:search_limit]
+print("Selecting 300k subset for hyperparameter tuning...")
+subset_size = min(300000, len(train_idx))
+search_idx = np.random.choice(train_idx, subset_size, replace=False)
 
-X_search = X_raw[search_idx][:, lite_indices].astype(np.float32)
-y_search = y_raw[search_idx].astype(np.float32)
+# Create LightGBM Dataset directly from memmap slice
+X_search = X_raw[search_idx][:, lite_indices]
+y_search = y_raw[search_idx]
 
-del data
-del X_raw
-del y_raw
+train_data = lgb.Dataset(X_search, label=y_search, free_raw_data=True)
+
+param_grid = [
+    {"learning_rate": 0.1, "num_leaves": 64},
+    {"learning_rate": 0.05, "num_leaves": 128},
+    {"learning_rate": 0.05, "num_leaves": 64},
+]
+
+print("Running manual hyperparameter tuning...")
+
+best_auc = 0
+best_params = None
+
+for params in param_grid:
+    full_params = {
+        "objective": "binary",
+        "metric": "auc",
+        "boosting_type": "gbdt",
+        "feature_fraction": 0.9,
+        "bagging_fraction": 0.9,
+        "bagging_freq": 1,
+        "min_data_in_leaf": 100,
+        "lambda_l2": 1.0,
+        "verbose": -1,
+        **params
+    }
+
+    cv_result = lgb.cv(
+    full_params,
+    train_data,
+    num_boost_round=1500,
+    nfold=3,
+    stratified=True,
+    seed=42,
+    callbacks=[
+        lgb.early_stopping(stopping_rounds=50),
+        lgb.log_evaluation(100)
+    ]
+    )
+
+    auc_key = [k for k in cv_result.keys() if "auc-mean" in k][0]
+    mean_auc = max(cv_result[auc_key])
+    print(f"Params {params} → AUC: {mean_auc:.6f}")
+
+    if mean_auc > best_auc:
+        best_auc = mean_auc
+        best_params = full_params
+
+print("\n=============================")
+print("BEST TUNING RESULT")
+print("=============================")
+print(f"AUC: {best_auc:.6f}")
+print("Params:", best_params)
+print("=============================\n")
+
+del X_search, y_search, train_data
 gc.collect()
 
-print(f"Hyperparameter Search Subset: {X_search.shape}")
+print("Choose training configuration:")
+print("1 → Use tuned hyperparameters")
+print("2 → Use SOREL baseline parameters")
+print("0 → Abort")
 
+choice = input("Enter your choice: ")
 
-param_dist = {
-    # Paper used 64.
-    'num_leaves': [31, 64, 128], 
-    'max_depth': [-1],
-    
-    # Paper used 0.1
-    'learning_rate': [0.05, 0.1],
-    'n_estimators': [500, 1000], # (num_iterations in paper)
-    
-    #Paper used 0.9. We test 0.8 to force redundancy (Rust protection).
-    'feature_fraction': [0.8, 0.9], # feature sampling
-    'bagging_fraction': [0.8, 0.9], # row sampling per frequency
-    'bagging_freq': [1, 5], # reshuffle every 1 or 5 trees
-    
-    
-    # 1.0 = Balanced Accuracy (Paper default)
-    # 3.0 = High Recall (Paranoid Sentry)
-    'scale_pos_weight': [1.0, 2.0, 3.0], 
-    
-    # REGULARIZATION: Keep paper defaults or slightly stronger
-    'lambda_l1': [0, 0.1],
-    'lambda_l2': [1.0], # Paper default
-}
+if choice == "1":
+    final_params = best_params
+elif choice == "2":
+    final_params = {
+        "objective": "binary",
+        "metric": "auc",
+        "boosting_type": "gbdt",
+        "learning_rate": 0.1,
+        "num_leaves": 64,
+        "feature_fraction": 0.9,
+        "bagging_fraction": 0.9,
+        "bagging_freq": 1,
+        "min_data_in_leaf": 100,
+        "lambda_l2": 1.0,
+        "verbose": -1
+    }
+else:
+    sys.exit()
 
-# Initialize Model 
-lgb_classifier = lgb.LGBMClassifier(
-    objective='binary', 
-    boosting_type='gbdt',
-    n_jobs=-1, # Use all CPU cores for training
-    verbose=-1 # Suppress warning unless fatal
+print("Preparing full dataset (no NumPy slicing)...")
+
+# Slice only lite features ONCE (still memmap view)
+X_lite = X_raw[:, lite_indices]
+y_full = y_raw
+
+# Create LightGBM Dataset from memmap view
+full_dataset = lgb.Dataset(
+    X_lite,
+    label=y_full,
+    free_raw_data=False
 )
 
-# Run Randomized Search 
-print(" Starting RandomizedSearchCV...")
-random_search = RandomizedSearchCV(
-    estimator=lgb_classifier, 
-    param_distributions=param_dist,
-    n_iter=10, # 10 random combinations to try, increase for better tuning (but takes longer)
-    scoring='roc_auc', # We care about AUC, not Accuracy
-    cv=3,              # 3-Fold CV( cross-validation ) 
-    verbose=2, # Show progress and results for each iteration
-    random_state=42, # reproducing splits and results
-    n_jobs=-1
-)
-
-random_search.fit(X_search, y_search)
-
-#  Report Results 
-print("\n" + "="*40)
-print("      HYPERPARAMETER RESULTS")
-print("="*40)
-print(f"Best AUC Score: {random_search.best_score_:.4f}")
-print("Best Parameters Found:")
-for key, value in random_search.best_params_.items():
-    print(f"  {key}: {value}")
-
-# (Optional) Final Train on FULL Dataset 
-# Now that we know the best params, we train on the full 2.5M rows
-print("\n Retraining Final Model on FULL dataset with Best Params...")
-
-# Reload full data (sorted by our shuffle index)
-X_full = X_raw[idx][:, lite_indices]
-y_full = y_raw[idx]
-
-best_params = random_search.best_params_
-# Ensure objective is set (RandomSearch wrapper handles it differently)
-best_params['objective'] = 'binary'
-best_params['metric'] = 'auc'
-
-train_set = lgb.Dataset(X_full, label=y_full)
+print("Training final model using internal validation split...")
 
 final_model = lgb.train(
-    best_params, 
-    train_set, 
-    num_boost_round=best_params['n_estimators']
+    final_params,
+    full_dataset,
+    num_boost_round=2000,
+    valid_sets=[full_dataset],
+    valid_names=["train"],
 )
 
-final_model.save_model('sorel_lite_tuned_v2.txt')
-print("[+] Final Tuned Model Saved: sorel_lite_tuned_v2.txt")
+print("Saving model...")
+final_model.save_model("sorel_lite_final_model.txt")
+
+print("Training complete.")

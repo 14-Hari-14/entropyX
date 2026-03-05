@@ -1,4 +1,5 @@
 import numpy as np
+import hashlib
 from config import HDR_OPT_FIELDS, HDR_OPT_ALIASES, STANDARD_SEC_NAMES, GUI_DLLS, CRT_PREFIXES
 
 def safe_get(d, *keys, default=0):
@@ -7,6 +8,12 @@ def safe_get(d, *keys, default=0):
             return default
         d = d.get(k, default)
     return d if d is not None else default
+
+def stable_hash_bin(value, bins):
+    digest = hashlib.blake2b(str(value).encode("utf-8"), digest_size=8).digest()
+    idx = int.from_bytes(digest, "little") % bins
+    sign = -1.0 if (digest[0] & 1) else 1.0
+    return idx, sign
 
 def extract_row_features(row):
     """Extract all flat features from one JSONL row. Returns a dict of scalars."""
@@ -107,5 +114,83 @@ def extract_row_features(row):
     cnt = len(exp) if isinstance(exp, (list, dict)) else 0
     out["exp_count"]     = cnt
     out["exp_available"] = int(cnt > 0)
+
+    # -- Rich Header --
+    rich_obj = row.get("rich_header", row.get("richheader", row.get("rich", [])))
+    rich_values = []
+    if isinstance(rich_obj, dict):
+        rich_values = rich_obj.get("values", rich_obj.get("raw", []))
+    elif isinstance(rich_obj, list):
+        rich_values = rich_obj
+
+    rich_bins = 8
+    for i in range(rich_bins):
+        out[f"rich_hash_{i}"] = 0.0
+    out["rich_num_pairs"] = 0
+
+    if isinstance(rich_values, list) and len(rich_values) >= 2:
+        n_pairs = len(rich_values) // 2
+        out["rich_num_pairs"] = n_pairs
+        for i in range(0, n_pairs * 2, 2):
+            compid = rich_values[i]
+            count = rich_values[i + 1]
+            if not isinstance(count, (int, float)):
+                continue
+            idx, sign = stable_hash_bin(compid, rich_bins)
+            out[f"rich_hash_{idx}"] += sign * float(count)
+
+    # -- Authenticode --
+    auth = row.get("authenticode", row.get("signature", row.get("signing", {})))
+    out["auth_num_certs"] = 0
+    out["auth_self_signed"] = 0
+    out["auth_parse_error"] = 0
+    out["auth_chain_depth"] = 0
+    out["auth_sign_time_delta_abs"] = 0
+    out["auth_no_countersigner"] = 0
+
+    if isinstance(auth, dict):
+        out["auth_num_certs"] = safe_get(auth, "num_certs", default=safe_get(auth, "certificate_count", default=0))
+        out["auth_self_signed"] = int(bool(safe_get(auth, "self_signed", default=0)))
+        out["auth_parse_error"] = int(bool(safe_get(auth, "parse_error", default=0)))
+        out["auth_chain_depth"] = safe_get(auth, "chain_max_depth", default=safe_get(auth, "chain_depth", default=0))
+        out["auth_no_countersigner"] = int(bool(safe_get(auth, "no_countersigner", default=0)))
+        sign_delta = safe_get(auth, "signing_time_diff", default=safe_get(auth, "sign_time_delta", default=0))
+        if isinstance(sign_delta, (int, float)):
+            out["auth_sign_time_delta_abs"] = abs(sign_delta)
+
+    # -- PE Parse Warnings --
+    warnings_obj = row.get("pe_warnings", row.get("pefile_warnings", row.get("pefilewarnings", row.get("warnings", []))))
+    if isinstance(warnings_obj, str):
+        warnings_list = [warnings_obj]
+    elif isinstance(warnings_obj, dict):
+        warnings_list = [f"{k}:{v}" for k, v in warnings_obj.items()]
+    elif isinstance(warnings_obj, list):
+        warnings_list = [str(w) for w in warnings_obj]
+    else:
+        warnings_list = []
+
+    warnings_text = " ".join(w.lower() for w in warnings_list)
+    out["pe_warn_count"] = len(warnings_list)
+    out["pe_warn_checksum"] = int("checksum" in warnings_text)
+    out["pe_warn_section"] = int("section" in warnings_text)
+    out["pe_warn_import"] = int("import" in warnings_text)
+    out["pe_warn_export"] = int("export" in warnings_text)
+    out["pe_warn_overlay"] = int("overlay" in warnings_text)
+
+    # -- Overlay --
+    overlay = row.get("overlay", safe_get(sec, "overlay", default={}))
+    out["overlay_size"] = 0
+    out["overlay_size_ratio"] = 0
+    out["overlay_entropy"] = 0
+    out["overlay_present"] = 0
+
+    if isinstance(overlay, dict):
+        overlay_size = safe_get(overlay, "size", default=0)
+        overlay_ratio = safe_get(overlay, "size_ratio", default=0)
+        overlay_entropy = safe_get(overlay, "entropy", default=0)
+        out["overlay_size"] = overlay_size
+        out["overlay_size_ratio"] = overlay_ratio
+        out["overlay_entropy"] = overlay_entropy
+        out["overlay_present"] = int(bool(overlay_size))
 
     return out

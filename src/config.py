@@ -13,6 +13,7 @@ IMPORT_DROPOUT_RATE = 0.30 # Simulating real-world scenario by dropping imports
 RAW_COLS_NEEDED = [
     "label", "general", "header", "section",
     "datadirectories", "imports", "exports",
+    "richheader", "authenticode", "pefilewarnings",
 ]
 
 FEATURE_COLS = [
@@ -83,6 +84,36 @@ FEATURE_COLS = [
     "has_upx_sections",      # section names contain 'upx' (UPX-packed, often benign tools)
     "has_inno_sections",     # section names contain '.itext' (Inno Setup installer)
     "imp_has_crt",           # imports vcruntime*.dll or api-ms-win-crt-* (C runtime)
+
+    # Additional fast PE metadata features
+    "rich_num_pairs",        # number of Rich header key/count pairs
+    "rich_hash_0",           # hashed rich pair bins
+    "rich_hash_1",
+    "rich_hash_2",
+    "rich_hash_3",
+    "rich_hash_4",
+    "rich_hash_5",
+    "rich_hash_6",
+    "rich_hash_7",
+
+    "auth_num_certs",        # cert count from authenticode metadata
+    "auth_self_signed",      # self-signed flag
+    "auth_parse_error",      # signature parse failure flag
+    "auth_chain_depth",      # max chain depth
+    "auth_sign_time_delta_abs", # abs(signing time - PE timestamp)
+    "auth_no_countersigner", # missing countersignature flag
+
+    "pe_warn_count",         # pe parser warning count
+    "pe_warn_checksum",      # checksum-related warning
+    "pe_warn_section",       # section-related warning
+    "pe_warn_import",        # import-related warning
+    "pe_warn_export",        # export-related warning
+    "pe_warn_overlay",       # overlay-related warning
+
+    "overlay_size",          # overlay byte size
+    "overlay_size_ratio",    # overlay/file size ratio
+    "overlay_entropy",       # overlay entropy
+    "overlay_present",       # overlay exists flag
 ]
 
 HDR_OPT_FIELDS = [

@@ -6,7 +6,7 @@ from config import FEATURE_COLS
 from sklearn.metrics import confusion_matrix, accuracy_score
 
 DATA_PATH = "../data/test_real/vaulted_test_set.csv"
-MODEL_PATH = "../model/ember_lite_model_2024.txt"
+MODEL_PATH = "../model/ember_tuned_2026_fpr.txt"
 THRESHOLD = 0.5
 
 

@@ -1,1 +1,0 @@
-alert tcp any any -> any 8080 (msg:"Local File Transfer"; filestore; sid:1; rev:3;)

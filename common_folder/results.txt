@@ -1,0 +1,79 @@
+
+================================================================================
+EMBER 2024 Lite Model — PE Scan Results
+Date:      2026-03-03 12:52:45
+Model:     ember_lite_model_2024.txt
+Directory: C:\Users\whizhack\Desktop\HardBenign
+Threshold: 0.4
+Files:     61  (Malware: 42 | Benign: 19 | Errors: 0)
+================================================================================
+
+File                                                            Score   Verdict
+--------------------------------------------------------------------------------
+7-Zip_26.00_Machine_X64_exe_en-US.exe                          0.9590   MALWARE
+Adobe Acrobat Reader (32-bit)_25.001.21223_Machine_X86_exe_en-US.exe   0.7825   MALWARE
+Adobe Acrobat Reader (64-bit)_25.001.21265_Machine_X64_exe_en-US.exe   0.1479   BENIGN
+Anaconda3_2025.12-2_User_X64_nullsoft_en-US.exe                0.7626   MALWARE
+Android Studio_2025.3.1.8_Machine_X64_nullsoft_en-US.exe       0.1734   BENIGN
+AnyDesk_9.6.11_Machine_X86_exe_en-US.exe                       0.8186   MALWARE
+Audacity_3.7.7_Machine_X64_inno_en-US.exe                      0.4720   MALWARE
+AutoHotkey_2.0.21_User_X64_exe_en-US.exe                       0.9944   MALWARE
+Bitwarden_2026.1.1_User_Neutral_nullsoft_en-US.exe             0.4268   MALWARE
+BleachBit_5.0.2.3065_User_X86_nullsoft_en-US.exe               0.7661   MALWARE
+Brave_145.1.87.191_User_X64_exe_en-US.exe                      0.8336   MALWARE
+CCleaner 7_7.5.1255.1528_Machine_X64_exe_en-US.exe             0.2423   BENIGN
+CLion_2025.3.3_User_X64_nullsoft_en-US.exe                     0.4426   MALWARE
+CPUID CPU-Z_2.18_Machine_X64_inno_en-US.exe                    0.8556   MALWARE
+Citrix Workspace_25.11.10.50_Machine_X86_exe_en-US.exe         0.8708   MALWARE
+Code__Blocks_25.03_User_X64_nullsoft_en-US.exe                 0.7434   MALWARE
+CrystalDiskInfo_9.8.0_Machine_X64_inno_en-US.exe               0.7344   MALWARE
+DataGrip_2025.3.5_User_X64_nullsoft_en-US.exe                  0.4564   MALWARE
+Discord_1.0.9227_User_X64_exe_en-US.exe                        0.9692   MALWARE
+Docker Desktop_4.63.0_Machine_X64_exe_en-US.exe                0.7225   MALWARE
+FreeCAD_1.0.2_User_X64_nullsoft_en-US.exe                      0.7412   MALWARE
+Git_2.53.0_User_X64_inno_en-US.exe                             0.6801   MALWARE
+GoLand_2025.3.3_User_X64_nullsoft_en-US.exe                    0.4719   MALWARE
+Google Earth Pro_7.3.7.1094_Machine_X64_exe_en-US.exe          0.2393   BENIGN
+Greenshot_1.3.312_User_X86_inno_en-US.exe                      0.8150   MALWARE
+HandBrake_1.10.2_Machine_X64_nullsoft_en-US.exe                0.9288   MALWARE
+HeidiSQL_12.15.0.7171_User_X64_inno_en-US.exe                  0.4754   MALWARE
+ImageMagick Q16-HDRI_7.1.2.15_Machine_X64_inno_en-US.exe       0.8028   MALWARE
+Insomnia_12.3.1_User_X86_exe_en-US.exe                         0.3109   BENIGN
+IntelliJ IDEA Community Edition_2025.2.6.1_User_X64_nullsoft_en-US.exe   0.4531   MALWARE
+Kubernetes - Minikube - A Local Kubernetes Development Environment_1.38.1_Machine_X64_nullsoft_en-US.exe   0.7552   MALWARE
+Malwarebytes_5.1.4.112_Machine_X64_exe_en-US.exe               0.0594   BENIGN
+Microsoft .NET SDK 8.0_8.0.418_X64_burn_en-US.exe              0.0879   BENIGN
+Microsoft .NET Windows Desktop Runtime 8.0_8.0.24_X64_burn_en-US.exe   0.0879   BENIGN
+Microsoft SQL Server Management Studio_20.2.1_Machine_X64_burn_en-US.exe   0.0705   BENIGN
+Microsoft Visual C++ v14 Redistributable (x64)_14.50.35719.0_Machine_X64_burn_en-US.exe   0.0819   BENIGN
+Microsoft Visual Studio Code_1.109.5_User_X64_inno_en-US.exe   0.4730   MALWARE
+Mozilla Firefox (en-US)_148.0_Machine_X64_nullsoft_en-GB.exe   0.9947   MALWARE
+Mozilla Thunderbird (en-US)_148.0_Machine_X64_nullsoft_en-US.exe   0.9889   MALWARE
+Notepad++_8.9.2_Machine_X64_nullsoft_en-US.exe                 0.8597   MALWARE
+Notion_7.6.1_User_X64_nullsoft_en-US.exe                       0.5356   MALWARE
+OBS Studio_32.0.4_Machine_X64_nullsoft_en-US.exe               0.8291   MALWARE
+Obsidian_1.12.4_User_X64_nullsoft_en-US.exe                    0.5280   MALWARE
+PhpStorm_2025.3.3_User_X64_nullsoft_en-US.exe                  0.4719   MALWARE
+Postman_12.0.1_User_X64_exe_en-US.exe                          0.2656   BENIGN
+PowerToys_0.97.2_User_X64_burn_en-US.exe                       0.0163   BENIGN
+PyCharm Community Edition_2025.2.6_User_X64_nullsoft_en-US.exe   0.4719   MALWARE
+Python 3.12_3.12.10_User_X64_burn_en-US.exe                    0.0840   BENIGN
+Slack_4.48.95_User_X64_exe_en-US.exe                           0.2718   BENIGN
+Telegram Desktop_6.6.1_User_X64_inno_en-US.exe                 0.5642   MALWARE
+Total Commander_11.56_User_X64_exe_en-US.exe                   0.6916   MALWARE
+VLC media player_3.0.23_Machine_X64_nullsoft_en-US.exe         0.7181   MALWARE
+Visual Studio BuildTools 2022_17.14.27_Machine_X64_exe_en-US.exe   0.3215   BENIGN
+Vivaldi_7.8.3925.74_User_X64_exe_en-US.exe                     0.0200   BENIGN
+Waterfox_6.6.9_Machine_X64_exe_en-US.exe                       0.9903   MALWARE
+WinRAR_7.20.0_Machine_X64_exe_en.exe                           0.1856   BENIGN
+WinSCP_6.5.5_User_X86_inno_en-US.exe                           0.4720   MALWARE
+balenaEtcher_2.1.4_User_X64_exe_en-US.exe                      0.2501   BENIGN
+hugo.exe                                                       0.2522   BENIGN
+paint.net.5.1.11.install.x64.exe                               0.9466   MALWARE
+qBittorrent_5.1.4_Machine_X64_nullsoft_en-US.exe               0.8319   MALWARE
+
+--------------------------------------------------------------------------------
+Total: 61 | Malware: 42 | Benign: 19 | Errors: 0
+Malware scores: 0.4268 – 0.9947 (mean 0.7167)
+Benign  scores: 0.0163 – 0.3215 (mean 0.1668)
+================================================================================

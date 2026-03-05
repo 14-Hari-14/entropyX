@@ -28,4 +28,6 @@ venv/
 
 redundant_scripts/
 
-Model/
+model/
+
+_archive/

@@ -20,6 +20,10 @@ from extractor_json import extract_row_features
 DATA_DIR = "/kaggle/input/datasets/weiweip/ember2024/Win64_train"
 np.random.seed(SEED) # For reproducibility
 
+TARGET_FPR = 0.10
+BENIGN_WEIGHT = 1.40
+HARD_BENIGN_WEIGHT = 2.25
+
 jsonl_files = sorted(glob.glob(os.path.join(DATA_DIR, "*.jsonl")))
 if not jsonl_files:
     raise FileNotFoundError(f"No JSONL file in the directory: {DATA_DIR}")
@@ -82,7 +86,23 @@ X_train, X_val, y_train, y_val = train_test_split(
 del X, y
 gc.collect()
 
-train_set = lgb.Dataset(X_train, label=y_train, feature_name=feat_cols, free_raw_data=True)
+train_weights = np.ones_like(y_train, dtype=np.float32)
+train_weights[y_train == 0] = BENIGN_WEIGHT
+
+hard_cols = ["has_inno_sections", "imp_has_gui_libs", "dd_cert_present", "gen_has_signature"]
+for col in hard_cols:
+    if col in feat_cols:
+        col_idx = feat_cols.index(col)
+        hard_mask = (y_train == 0) & (X_train[:, col_idx] > 0)
+        train_weights[hard_mask] *= HARD_BENIGN_WEIGHT
+
+train_set = lgb.Dataset(
+    X_train,
+    label=y_train,
+    weight=train_weights,
+    feature_name=feat_cols,
+    free_raw_data=True,
+)
 val_set   = lgb.Dataset(X_val,   label=y_val,   reference=train_set, free_raw_data=True)
 
 # TRAIN MODEL
@@ -95,6 +115,9 @@ for feat, direction in [
     ("exp_available", -1),   # missing exports → more suspicious
     ("dd_cert_present", -1), # code-signed → less suspicious, never more
     ("imp_has_crt", -1),     # has C runtime → less suspicious (normal app)
+    ("gen_has_signature", -1),
+    ("imp_has_gui_libs", -1),
+    ("has_inno_sections", -1),
 ]:
     if feat in feat_cols:
         monotone[feat_cols.index(feat)] = direction
@@ -103,13 +126,15 @@ params = {
     "objective": "binary",
     "metric": ["auc", "binary_logloss"],
     "boosting_type": "gbdt",
-    "num_leaves": 64,
-    "learning_rate": 0.05,
-    "feature_fraction": 0.9,
-    "bagging_fraction": 0.9,
+    "num_leaves": 48,
+    "learning_rate": 0.03,
+    "feature_fraction": 0.85,
+    "bagging_fraction": 0.85,
     "bagging_freq": 1,
-    "min_data_in_leaf": 100,
+    "min_data_in_leaf": 180,
     "lambda_l2": 1.0,
+    "lambda_l1": 0.2,
+    "min_gain_to_split": 0.02,
     "monotone_constraints": monotone,
     "verbose": -1,
     "n_jobs": -1,
@@ -131,19 +156,39 @@ model = lgb.train(
     callbacks=callbacks,
 )
 
+del train_weights
+gc.collect()
+
 # EVALUATE
 y_val_prob = model.predict(X_val)
 auc = roc_auc_score(y_val, y_val_prob)
 
-for thresh in [0.5, 0.4, 0.3, 0.2, 0.1]:
+best_thresh = None
+best_recall = -1.0
+
+for thresh in [0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30, 0.25, 0.20, 0.15, 0.10]:
     y_pred = (y_val_prob >= thresh).astype(int)
     tn, fp, fn, tp = confusion_matrix(y_val, y_pred, labels=[0, 1]).ravel()
     acc    = accuracy_score(y_val, y_pred)
     recall = tp / (tp + fn) if (tp + fn) else 0
     fpr    = fp / (fp + tn) if (fp + tn) else 0
-    print(f"  thresh={thresh:.1f}  acc={acc:.4f}  recall={recall:.4f}  FPR={fpr:.4f}  TP={tp} FN={fn} FP={fp}")
+    print(f"  thresh={thresh:.2f}  acc={acc:.4f}  recall={recall:.4f}  FPR={fpr:.4f}  TP={tp} FN={fn} FP={fp}")
+
+    if fpr <= TARGET_FPR and recall > best_recall:
+        best_recall = recall
+        best_thresh = thresh
 
 print(f"\n[*] Validation AUC: {auc:.5f}")
+
+if best_thresh is not None:
+    y_best = (y_val_prob >= best_thresh).astype(int)
+    tn, fp, fn, tp = confusion_matrix(y_val, y_best, labels=[0, 1]).ravel()
+    best_fpr = fp / (fp + tn) if (fp + tn) else 0
+    best_fnr = fn / (fn + tp) if (fn + tp) else 0
+    print(f"[*] Low-FPR threshold @ target={TARGET_FPR:.2f}: {best_thresh:.2f}")
+    print(f"[*] Low-FPR metrics -> FPR={best_fpr:.4f} FNR={best_fnr:.4f} TP={tp} FP={fp}")
+else:
+    print(f"[*] No threshold met target FPR <= {TARGET_FPR:.2f} on validation.")
 
 # FEATURE IMPORTANCE
 imp = model.feature_importance(importance_type="gain")

@@ -2,13 +2,14 @@
 This module contains the configuration settings for the model.
 '''
 # CONSTANTS
-
 MAX_BYTES = 1 * 1024 * 1024 # 1MB Truncation
 SEED = 42 # Reproducibility
 MODEL_PATH = "ember_lite_model_2024.txt"
+MODEL_OUT = "ember_lite_model_2024.txt"
 IMPORT_DROPOUT_RATE = 0.30 # Simulating real-world scenario by dropping imports
 
 
+# FEATURES
 RAW_COLS_NEEDED = [
     "label", "general", "header", "section",
     "datadirectories", "imports", "exports",

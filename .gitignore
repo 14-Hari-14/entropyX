@@ -1,8 +1,16 @@
 # datasets
 data/
+
+# specific files
 src/bb1.py
 src/false_positives_autopsy.csv
 *.zip
+
+# directories
+common_folder/
+redundant_scripts/
+model/
+_archive/
 
 # Python cache
 __pycache__/
@@ -25,7 +33,3 @@ venv/
 
 # env file
 .env
-
-redundant_scripts/
-model/
-_archive/

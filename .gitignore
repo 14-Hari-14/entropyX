@@ -1,7 +1,7 @@
 # datasets
 data/
 src/bb1.py
-
+src/false_positives_autopsy.csv
 *.zip
 
 # Python cache
@@ -27,7 +27,5 @@ venv/
 .env
 
 redundant_scripts/
-
 model/
-
 _archive/
